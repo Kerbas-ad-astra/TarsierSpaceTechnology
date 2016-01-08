@@ -45,7 +45,8 @@ namespace TarsierSpaceTech
 		private Transform _baseTransform;
         private Transform _cameraTransform;
 		private Transform _lookTransform;
-		private TSTCameraModule _camera;              
+		internal TSTCameraModule _camera; 
+                  
 
         private bool _showTarget = false;		
 		private bool _saveToFile = false;		
@@ -269,11 +270,16 @@ namespace TarsierSpaceTech
 				_lastTarget = vessel.targetObject;
 			}
 
-            if (!_inEditor && _camera.Enabled && windowState != WindowSate.Hidden && vessel.isActiveVessel)
-            {                
+            if (vessel.targetObject != null)
+            {
+                this.Log_Debug("Vessel target=" + vessel.targetObject.GetTransform().position);
+            }
+
+            //if (!_inEditor && _camera.Enabled && windowState != WindowSate.Hidden && vessel.isActiveVessel)
+            //{                
                 //if (_camera.Enabled && f++ % frameLimit == 0)                                   
                 //_camera.draw();                
-			}
+			//}
 		}
 
         #region GUI
@@ -384,7 +390,7 @@ namespace TarsierSpaceTech
 					FlightGlobals.fetch.SetVesselTarget(bodyTarget);
 					Utilities.Log_Debug("TSTTel","Targetting: " + newTarget.ToString() + " " + bodyTarget.name);
                     Utilities.Log_Debug("TSTTel", "Targetting: " + newTarget.ToString() + " " + bodyTarget.name + ",layer=" + bodyTarget.gameObject.layer);
-                    Utilities.Log_Debug("pos=" + bodyTarget.position + ",tex:" + bodyTarget.renderer.material.mainTexture.name);
+                    Utilities.Log_Debug("pos=" + bodyTarget.position);
 					ScreenMessages.PostScreenMessage("Target: " + bodyTarget.theName, 3f, ScreenMessageStyle.UPPER_CENTER);
 				}				
 			}            
@@ -422,7 +428,7 @@ namespace TarsierSpaceTech
 				galaxyTarget = TSTGalaxies.Galaxies[selectedTargetIndex];
 				FlightGlobals.fetch.SetVesselTarget(galaxyTarget);                
 				Utilities.Log_Debug("TSTTel","Targetting: " + newTarget.ToString() + " " + galaxyTarget.name + ",layer=" + galaxyTarget.gameObject.layer + ",scaledpos=" + galaxyTarget.scaledPosition);
-                Utilities.Log_Debug("pos=" + galaxyTarget.position + ",tex:" + galaxyTarget.renderer.material.mainTexture.name);
+                Utilities.Log_Debug("pos=" + galaxyTarget.position);
 				ScreenMessages.PostScreenMessage("Target: "+galaxyTarget.theName, 3f, ScreenMessageStyle.UPPER_CENTER);
 			}            
             GUILayout.EndScrollView(); 
@@ -623,7 +629,7 @@ namespace TarsierSpaceTech
 			{
 				if (part.name == "tarsierSpaceTelescope")
 				{
-					ScienceData data = new ScienceData((experiment.baseValue / 2) * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title);
+					ScienceData data = new ScienceData((experiment.baseValue / 2) * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title, false, part.flightID);
 					Utilities.Log_Debug("TSTTel","Got data");
 					data.title = "Tarsier Space Telescope: Orbiting " + vessel.mainBody.theName + " looking at " + galaxy.theName;
 					_scienceData.Add(data);
@@ -632,7 +638,7 @@ namespace TarsierSpaceTech
 				}
 				else
 				{
-					ScienceData data = new ScienceData(experiment.baseValue * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title);
+					ScienceData data = new ScienceData(experiment.baseValue * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title, false, part.flightID);
 					Utilities.Log_Debug("TSTTel","Got data");
 					data.title = "Tarsier Space Telescope: Orbiting " + vessel.mainBody.theName + " looking at " + galaxy.theName;
 					_scienceData.Add(data);
@@ -655,7 +661,7 @@ namespace TarsierSpaceTech
 			{
 				if (part.name == "tarsierSpaceTelescope")
 				{
-					ScienceData data = new ScienceData((experiment.baseValue * 0.8f) * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title);
+					ScienceData data = new ScienceData((experiment.baseValue * 0.8f) * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title, false, part.flightID);
 					Utilities.Log_Debug("TSTTel","Got data");
 					data.title = "Tarsier Space Telescope: Oriting " + vessel.mainBody.theName + " looking at " + planet.theName;
 					_scienceData.Add(data);
@@ -664,7 +670,7 @@ namespace TarsierSpaceTech
 				}
 				else
 				{
-					ScienceData data = new ScienceData(experiment.baseValue * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title);
+					ScienceData data = new ScienceData(experiment.baseValue * subject.dataScale, xmitDataScalar, labBoostScalar, subject.id, subject.title, false, part.flightID);
 					Utilities.Log_Debug("TSTTel","Got data");
 					data.title = "Tarsier Space Telescope: Oriting " + vessel.mainBody.theName + " looking at " + planet.theName;
 					_scienceData.Add(data);
@@ -790,7 +796,14 @@ namespace TarsierSpaceTech
             eventReviewScience();
         }
 
-
+        public void ReturnData(ScienceData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+            _scienceData.Add(data);
+        }
         public bool IsRerunnable()
         {
             Utilities.Log_Debug("TSTTel", "Is rerunnable");
