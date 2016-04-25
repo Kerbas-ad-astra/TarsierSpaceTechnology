@@ -21,11 +21,9 @@
  *  along with TarsierSpaceTech.  If not, see <http://opensource.org/licenses/MIT>.
  *
  */
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
+using System.Collections.Generic;
+using RSTUtils;
 using UnityEngine;
 
 namespace TarsierSpaceTech
@@ -80,7 +78,7 @@ namespace TarsierSpaceTech
                 baseTransform.SetActive(false);
                 Debug.Log("TSTGalaxies BaseTransform setactive = false, ScaledSun does not exist");
             }
-            if (TSTInstalledMods.IsKopInstalled)
+            if (Utilities.IsKopInstalled)
             {
                 baseTransform.transform.parent = FlightGlobals.Bodies[1].transform;
                 Debug.Log("TSTGalaxies - Detected Kopernicus - BaseTransform set to Home Planet");

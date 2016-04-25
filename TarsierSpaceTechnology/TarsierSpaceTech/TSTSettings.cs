@@ -25,6 +25,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using RSTUtils;
 using UnityEngine;
 
 namespace TarsierSpaceTech
@@ -32,40 +34,37 @@ namespace TarsierSpaceTech
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     internal class TSTMstStgs : MonoBehaviour
     {
-        public static TSTMstStgs Instance { get; private set; }
-
-        //private readonly string FilePath;
-        private ConfigNode globalNode = new ConfigNode();
-
-        public TSTSettings TSTsettings { get; private set; }
-        public TSTGasPlanets TSTgasplanets { get; private set; }
-        public TSTStockPlanets TSTstockplanets { get; private set; }
-        public TSTRSSPlanets TSTrssplanets { get; private set; }
-        public TSTOPMPlanets TSTopmplanets { get; private set; }
+        public static TSTMstStgs Instance { get; private set; }               
+        internal ConfigNode globalNode = new ConfigNode();
+        public TSTSettings TSTsettings { get; }
+        public TSTGasPlanets TSTgasplanets { get; }
+        public TSTStockPlanets TSTstockplanets { get; }
+        public TSTRSSPlanets TSTrssplanets { get; }
+        public TSTOPMPlanets TSTopmplanets { get; }         
         private readonly string globalConfigFilename;
-        internal bool isRBactive = false;
-        internal bool isRBloaded = false;
-        internal bool loadRBthisscene = false;
+        internal bool isRBactive;
+        internal bool isRBloaded;
+        internal bool loadRBthisscene;
         internal Dictionary<CelestialBody, bool> TrackedBodies = new Dictionary<CelestialBody, bool>();
         internal Dictionary<CelestialBody, int> ResearchState = new Dictionary<CelestialBody, int>();
 
         public TSTMstStgs()
-        {
-            Utilities.Log("TSTMstStgs", "Constructor");
+        {                       
+            Utilities.Log("TSTMstStgs Constructor");
             Instance = this;
             TSTsettings = new TSTSettings();
             TSTgasplanets = new TSTGasPlanets();
             TSTstockplanets = new TSTStockPlanets();
             TSTrssplanets = new TSTRSSPlanets();
             TSTopmplanets = new TSTOPMPlanets();
-            globalConfigFilename = System.IO.Path.Combine(_AssemblyFolder, "Config.cfg").Replace("\\", "/");
-            Utilities.Log("TSTMstStgs", "globalConfigFilename = " + globalConfigFilename);
+            globalConfigFilename = Path.Combine(_AssemblyFolder, "Config.cfg").Replace("\\", "/");
+            Utilities.Log("TSTMstStgs globalConfigFilename = " + globalConfigFilename);
         }
 
         public void Awake()
         {
             // Load the global settings
-            if (System.IO.File.Exists(globalConfigFilename))
+            if (File.Exists(globalConfigFilename))
             {
                 globalNode = ConfigNode.Load(globalConfigFilename);
                 TSTsettings.Load(globalNode);
@@ -74,12 +73,12 @@ namespace TarsierSpaceTech
                 TSTrssplanets.Load(globalNode);
                 TSTopmplanets.Load(globalNode);
             }           
-            Utilities.Log("TSTMstStgs", "OnLoad: \n " + globalNode);
+            Utilities.Log("TSTMstStgs", "OnLoad: \n {0}" + globalNode);
         }
 
         public void Start()
         {
-            isRBactive = TSTInstalledMods.IsResearchBodiesInstalled;
+            isRBactive = Utilities.IsResearchBodiesInstalled;
             if (HighLogic.LoadedScene == GameScenes.SPACECENTER || HighLogic.LoadedScene == GameScenes.TRACKSTATION || HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
                 loadRBthisscene = true;
@@ -92,7 +91,7 @@ namespace TarsierSpaceTech
             {
                 return;
             }
-            isRBactive = TSTInstalledMods.IsResearchBodiesInstalled;
+            isRBactive = Utilities.IsResearchBodiesInstalled;
             if (isRBactive)
             {
                 RBWrapper.InitRBDBWrapper();
@@ -138,7 +137,7 @@ namespace TarsierSpaceTech
                                                 if (cbSettingNode.GetValue("body") == cb.GetName())
                                                     cbNode = cbSettingNode;
                                             }
-                                            cbNode.AddValue("researchState", "0");
+                                            if (cbNode != null) cbNode.AddValue("researchState", "0");
                                             mainnode.Save("saves/" + HighLogic.SaveFolder + "/researchbodies.cfg");
                                             ResearchState[cb] = 0;
                                         }
@@ -171,7 +170,7 @@ namespace TarsierSpaceTech
             TSTrssplanets.Save(globalNode);
             TSTopmplanets.Save(globalNode);
             globalNode.Save(globalConfigFilename);
-            this.Log_Debug("TSTMstStgs OnSave: \n " + globalNode);
+            Utilities.Log_Debug("TSTMstStgs OnSave: \n {0}" , globalNode.ToString());
         }
 
         #region Assembly/Class Information
@@ -180,19 +179,19 @@ namespace TarsierSpaceTech
         /// Name of the Assembly that is running this MonoBehaviour
         /// </summary>
         internal static String _AssemblyName
-        { get { return System.Reflection.Assembly.GetExecutingAssembly().GetName().Name; } }
+        { get { return Assembly.GetExecutingAssembly().GetName().Name; } }
 
         /// <summary>
         /// Full Path of the executing Assembly
         /// </summary>
         internal static String _AssemblyLocation
-        { get { return System.Reflection.Assembly.GetExecutingAssembly().Location; } }
+        { get { return Assembly.GetExecutingAssembly().Location; } }
 
         /// <summary>
         /// Folder containing the executing Assembly
         /// </summary>
         internal static String _AssemblyFolder
-        { get { return System.IO.Path.GetDirectoryName(_AssemblyLocation); } }
+        { get { return Path.GetDirectoryName(_AssemblyLocation); } }
 
         #endregion Assembly/Class Information
     }
@@ -201,27 +200,32 @@ namespace TarsierSpaceTech
     {
         private const string configNodeName = "TSTSettings";
 
-        public float FwindowPosX { get; set; }
-        public float FwindowPosY { get; set; }
-        public float CwindowPosX { get; set; }
-        public float CwindowPosY { get; set; }
-        public float GalwindowPosX { get; set; }
-        public float GalwindowPosY { get; set; }
-        public float BodwindowPosX { get; set; }
-        public float BodwindowPosY { get; set; }
-        public int ChemwinSml { get; set; }
-        public int ChemwinLge { get; set; }
-        public int TelewinSml { get; set; }
-        public int TelewinLge { get; set; }
-        public bool UseAppLauncher { get; set; }
-        public bool debugging { get; set; }
-        public int maxChemCamContracts { get; set; }
-        public bool photoOnlyChemCamContracts { get; set; }
+        public float FwindowPosX ;
+        public float FwindowPosY ;
+        public float SCwindowPosX ;
+        public float SCwindowPosY ;
+        public float CwindowPosX ;
+        public float CwindowPosY ;
+        public float GalwindowPosX ;
+        public float GalwindowPosY ;
+        public float BodwindowPosX ;
+        public float BodwindowPosY ;
+        public int ChemwinSml ;
+        public int ChemwinLge ;
+        public int TelewinSml ;
+        public int TelewinLge ;
+        public bool UseAppLauncher ;
+        public bool debugging ;
+        public bool Tooltips ;
+        public int maxChemCamContracts ;
+        public bool photoOnlyChemCamContracts ;
 
         public TSTSettings()
         {
             FwindowPosX = 40;
             FwindowPosY = 50;
+            SCwindowPosX = 40;
+            SCwindowPosY = 50;
             CwindowPosX = 128;
             CwindowPosY = 128;
             GalwindowPosX = 512;
@@ -234,6 +238,7 @@ namespace TarsierSpaceTech
             TelewinLge = 600;
             UseAppLauncher = true;
             debugging = true;
+            Tooltips = true;
             maxChemCamContracts = 3;
             photoOnlyChemCamContracts = true;
         }
@@ -244,24 +249,29 @@ namespace TarsierSpaceTech
         {
             if (node.HasNode(configNodeName))
             {
-                ConfigNode TSTsettingsNode = node.GetNode(configNodeName);
-                FwindowPosX = Utilities.GetNodeValue(TSTsettingsNode, "FwindowPosX", FwindowPosX);
-                FwindowPosY = Utilities.GetNodeValue(TSTsettingsNode, "FwindowPosY", FwindowPosY);
-                CwindowPosX = Utilities.GetNodeValue(TSTsettingsNode, "CwindowPosX", CwindowPosX);
-                CwindowPosY = Utilities.GetNodeValue(TSTsettingsNode, "CwindowPosY", CwindowPosY);
-                GalwindowPosX = Utilities.GetNodeValue(TSTsettingsNode, "GalwindowPosX", GalwindowPosX);
-                GalwindowPosY = Utilities.GetNodeValue(TSTsettingsNode, "GalwindowPosY", GalwindowPosY);
-                BodwindowPosX = Utilities.GetNodeValue(TSTsettingsNode, "BodwindowPosX", BodwindowPosX);
-                BodwindowPosY = Utilities.GetNodeValue(TSTsettingsNode, "BodwindowPosY", BodwindowPosY);
-                ChemwinSml = Utilities.GetNodeValue(TSTsettingsNode, "ChemwinSml", ChemwinSml);
-                ChemwinLge = Utilities.GetNodeValue(TSTsettingsNode, "ChemwinLge", ChemwinLge);
-                TelewinSml = Utilities.GetNodeValue(TSTsettingsNode, "TelewinSml", TelewinSml);
-                TelewinSml = Utilities.GetNodeValue(TSTsettingsNode, "TelewinSml", TelewinLge);
-                UseAppLauncher = Utilities.GetNodeValue(TSTsettingsNode, "UseAppLauncher", UseAppLauncher);
-                debugging = Utilities.GetNodeValue(TSTsettingsNode, "debugging", debugging);
-                maxChemCamContracts = Utilities.GetNodeValue(TSTsettingsNode, "maxChemCamContracts", maxChemCamContracts);
-                photoOnlyChemCamContracts = Utilities.GetNodeValue(TSTsettingsNode, "photoOnlyChemCamContracts", photoOnlyChemCamContracts);
-                this.Log_Debug("TSTSettings load complete");
+                ConfigNode TSTsettingsNode = new ConfigNode();
+                node.TryGetNode(configNodeName, ref TSTsettingsNode);
+                TSTsettingsNode.TryGetValue( "FwindowPosX", ref FwindowPosX);
+                TSTsettingsNode.TryGetValue( "FwindowPosY", ref FwindowPosY);
+                TSTsettingsNode.TryGetValue( "SCwindowPosX", ref FwindowPosX);
+                TSTsettingsNode.TryGetValue( "SCwindowPosY", ref FwindowPosY);
+                TSTsettingsNode.TryGetValue( "CwindowPosX", ref CwindowPosX);
+                TSTsettingsNode.TryGetValue( "CwindowPosY", ref CwindowPosY);
+                TSTsettingsNode.TryGetValue( "GalwindowPosX", ref GalwindowPosX);
+                TSTsettingsNode.TryGetValue( "GalwindowPosY", ref GalwindowPosY);
+                TSTsettingsNode.TryGetValue( "BodwindowPosX", ref BodwindowPosX);
+                TSTsettingsNode.TryGetValue( "BodwindowPosY", ref BodwindowPosY);
+                TSTsettingsNode.TryGetValue( "ChemwinSml", ref ChemwinSml);
+                TSTsettingsNode.TryGetValue( "ChemwinLge", ref ChemwinLge);
+                TSTsettingsNode.TryGetValue( "TelewinSml", ref TelewinSml);
+                TSTsettingsNode.TryGetValue( "TelewinLge", ref TelewinLge);
+                TSTsettingsNode.TryGetValue( "UseAppLauncher", ref UseAppLauncher);
+                TSTsettingsNode.TryGetValue( "debugging", ref debugging);
+                TSTsettingsNode.TryGetValue( "Tooltips", ref Tooltips);
+                Utilities.debuggingOn = debugging;
+                TSTsettingsNode.TryGetValue( "maxChemCamContracts", ref maxChemCamContracts);
+                TSTsettingsNode.TryGetValue( "photoOnlyChemCamContracts", ref photoOnlyChemCamContracts);
+                Utilities.Log_Debug("TSTSettings load complete");
             }
         }
 
@@ -279,6 +289,8 @@ namespace TarsierSpaceTech
             }
             settingsNode.AddValue("FwindowPosX", FwindowPosX);
             settingsNode.AddValue("FwindowPosY", FwindowPosY);
+            settingsNode.AddValue("SCwindowPosX", FwindowPosX);
+            settingsNode.AddValue("SCwindowPosY", FwindowPosY);
             settingsNode.AddValue("CwindowPosX", CwindowPosX);
             settingsNode.AddValue("CwindowPosY", CwindowPosY);
             settingsNode.AddValue("GalwindowPosX", GalwindowPosX);
@@ -291,9 +303,10 @@ namespace TarsierSpaceTech
             settingsNode.AddValue("TelewinLge", TelewinLge);
             settingsNode.AddValue("UseAppLauncher", UseAppLauncher);
             settingsNode.AddValue("debugging", debugging);
+            settingsNode.AddValue("Tooltips", Tooltips);
             settingsNode.AddValue("maxChemCamContracts", maxChemCamContracts);
             settingsNode.AddValue("photoOnlyChemCamContracts", photoOnlyChemCamContracts);
-            this.Log_Debug("TSTSettings save complete");
+            Utilities.Log_Debug("TSTSettings save complete");
         }
     }
 
@@ -301,19 +314,16 @@ namespace TarsierSpaceTech
     {
         private const string configNodeName = "TSTGasPlanets";
 
-        public string[] TarsierPlanetOrder { get; set; }
-
-        public TSTGasPlanets()
-        {
-            //TarsierPlanetOrder = new string[] { };
-        }
+        public string[] TarsierPlanetOrder ;
 
         public void Load(ConfigNode node)
         {
             if (node.HasNode(configNodeName))
             {
-                ConfigNode TSTGasPlanetsNode = node.GetNode(configNodeName);
-                string tmpPlanetOrderString = Utilities.GetNodeValue(TSTGasPlanetsNode, "planets", string.Empty);
+                ConfigNode TSTGasPlanetsNode = new ConfigNode();
+                node.TryGetNode(configNodeName, ref TSTGasPlanetsNode);
+                string tmpPlanetOrderString = "";
+                TSTGasPlanetsNode.TryGetValue("planets", ref TarsierPlanetOrder);
                 string[] tmpPlanetOrder = tmpPlanetOrderString.Split(',');
                 TarsierPlanetOrder = new string[tmpPlanetOrder.Length];
                 if (tmpPlanetOrder.Length > 0)
@@ -324,7 +334,7 @@ namespace TarsierSpaceTech
                     }
                 }
             }
-            this.Log_Debug("TSTGasPlanets load complete");
+            Utilities.Log_Debug("TSTGasPlanets load complete");
         }
 
         public void Save(ConfigNode node)
@@ -341,7 +351,7 @@ namespace TarsierSpaceTech
             }
             string tmpPlanetOrder = string.Join(",", TarsierPlanetOrder);
             TSTGasPlanetsNode.AddValue("planets", tmpPlanetOrder);
-            this.Log_Debug("TSTGasPlanets save complete");
+            Utilities.Log_Debug("TSTGasPlanets save complete");
         }
     }
 
@@ -349,19 +359,16 @@ namespace TarsierSpaceTech
     {
         private const string configNodeName = "TSTStockPlanetOrder";
 
-        public string[] StockPlanetOrder { get; set; }
-
-        public TSTStockPlanets()
-        {
-            //TarsierPlanetOrder = new string[] { };
-        }
+        public string[] StockPlanetOrder ;
 
         public void Load(ConfigNode node)
         {
             if (node.HasNode(configNodeName))
             {
-                ConfigNode TSTStockPlanetOrderNode = node.GetNode(configNodeName);
-                string tmpPlanetOrderString = Utilities.GetNodeValue(TSTStockPlanetOrderNode, "planets", string.Empty);
+                ConfigNode TSTStockPlanetOrderNode = new ConfigNode();
+                node.TryGetNode(configNodeName, ref TSTStockPlanetOrderNode);
+                string tmpPlanetOrderString = "";
+                TSTStockPlanetOrderNode.TryGetValue("planets", ref tmpPlanetOrderString);
                 string[] tmpPlanetOrder = tmpPlanetOrderString.Split(',');
                 StockPlanetOrder = new string[tmpPlanetOrder.Length];
                 if (tmpPlanetOrder.Length > 0)
@@ -372,7 +379,7 @@ namespace TarsierSpaceTech
                     }
                 }
             }
-            this.Log_Debug("TSTStockPlanetOrder load complete");
+            Utilities.Log_Debug("TSTStockPlanetOrder load complete");
         }
 
         public void Save(ConfigNode node)
@@ -389,7 +396,7 @@ namespace TarsierSpaceTech
             }
             string tmpPlanetOrder = string.Join(",", StockPlanetOrder);
             TSTStockPlanetOrderNode.AddValue("planets", tmpPlanetOrder);
-            this.Log_Debug("TSTStockPlanetOrder save complete");
+            Utilities.Log_Debug("TSTStockPlanetOrder save complete");
         }
     }
 
@@ -397,19 +404,16 @@ namespace TarsierSpaceTech
     {
         private const string configNodeName = "TSTRSSPlanetOrder";
 
-        public string[] RSSPlanetOrder { get; set; }
-
-        public TSTRSSPlanets()
-        {
-            //TarsierPlanetOrder = new string[] { };
-        }
+        public string[] RSSPlanetOrder ;
 
         public void Load(ConfigNode node)
         {
             if (node.HasNode(configNodeName))
             {
-                ConfigNode TSTStockPlanetOrderNode = node.GetNode(configNodeName);
-                string tmpPlanetOrderString = Utilities.GetNodeValue(TSTStockPlanetOrderNode, "planets", string.Empty);
+                ConfigNode TSTStockPlanetOrderNode = new ConfigNode();
+                node.TryGetNode(configNodeName, ref TSTStockPlanetOrderNode);
+                string tmpPlanetOrderString = "";
+                TSTStockPlanetOrderNode.TryGetValue("planets", ref tmpPlanetOrderString);
                 string[] tmpPlanetOrder = tmpPlanetOrderString.Split(',');
                 RSSPlanetOrder = new string[tmpPlanetOrder.Length];
                 if (tmpPlanetOrder.Length > 0)
@@ -420,7 +424,7 @@ namespace TarsierSpaceTech
                     }
                 }
             }
-            this.Log_Debug("TSTRSSPlanetOrder load complete");
+            Utilities.Log_Debug("TSTRSSPlanetOrder load complete");
         }
 
         public void Save(ConfigNode node)
@@ -437,7 +441,7 @@ namespace TarsierSpaceTech
             }
             string tmpPlanetOrder = string.Join(",", RSSPlanetOrder);
             TSTStockPlanetOrderNode.AddValue("planets", tmpPlanetOrder);
-            this.Log_Debug("TSTRSSPlanetOrder save complete");
+            Utilities.Log_Debug("TSTRSSPlanetOrder save complete");
         }
     }
 
@@ -445,19 +449,16 @@ namespace TarsierSpaceTech
     {
         private const string configNodeName = "TSTOPMPlanetOrder";
 
-        public string[] OPMPlanetOrder { get; set; }
-
-        public TSTOPMPlanets()
-        {
-            //TarsierPlanetOrder = new string[] { };
-        }
+        public string[] OPMPlanetOrder ;
 
         public void Load(ConfigNode node)
         {
             if (node.HasNode(configNodeName))
             {
-                ConfigNode TSTStockPlanetOrderNode = node.GetNode(configNodeName);
-                string tmpPlanetOrderString = Utilities.GetNodeValue(TSTStockPlanetOrderNode, "planets", string.Empty);
+                ConfigNode TSTStockPlanetOrderNode = new ConfigNode();
+                node.TryGetNode(configNodeName, ref TSTStockPlanetOrderNode);
+                string tmpPlanetOrderString = "";
+                TSTStockPlanetOrderNode.TryGetValue( "planets", ref tmpPlanetOrderString);
                 string[] tmpPlanetOrder = tmpPlanetOrderString.Split(',');
                 OPMPlanetOrder = new string[tmpPlanetOrder.Length];
                 if (tmpPlanetOrder.Length > 0)
@@ -468,7 +469,7 @@ namespace TarsierSpaceTech
                     }
                 }
             }
-            this.Log_Debug("TSTOPMPlanetOrder load complete");
+            Utilities.Log_Debug("TSTOPMPlanetOrder load complete");
         }
 
         public void Save(ConfigNode node)
@@ -485,7 +486,7 @@ namespace TarsierSpaceTech
             }
             string tmpPlanetOrder = string.Join(",", OPMPlanetOrder);
             TSTStockPlanetOrderNode.AddValue("planets", tmpPlanetOrder);
-            this.Log_Debug("TSTOPMPlanetOrder save complete");
+            Utilities.Log_Debug("TSTOPMPlanetOrder save complete");
         }
     }
 }

@@ -21,9 +21,11 @@
  *  along with TarsierSpaceTech.  If not, see <http://opensource.org/licenses/MIT>.
  *
  */
-using System;
+
 using System.Collections.Generic;
 using System.Linq;
+using KSP.UI.Screens.Flight.Dialogs;
+using RSTUtils;
 using UnityEngine;
 
 namespace TarsierSpaceTech
@@ -47,7 +49,7 @@ namespace TarsierSpaceTech
         [KSPField(guiActive = false, isPersistant = false)]
         public float EVARange = 1.2f;
 
-        private float _dataAmount = 0;
+        private float _dataAmount;
         private float _DataAmount
         {
             get
@@ -73,40 +75,40 @@ namespace TarsierSpaceTech
         [KSPEvent(name = "fillDrive", active = true, guiActive = true, externalToEVAOnly = false, guiName = "Fill Hard Drive")]
         public void fillDrive()
         {
-            Utilities.Log_Debug("TSTSDD","FILLING DRIVE");
+            Utilities.Log_Debug("FILLING DRIVE");
 
             //List<Part> parts = vessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).ToList();
             List<Part> parts = FlightGlobals.ActiveVessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).ToList();
             parts.RemoveAll(p => p.FindModulesImplementing<TSTScienceHardDrive>().Count > 0);
-            Utilities.Log_Debug("TSTSDD","Parts=" + parts.Count);
+            Utilities.Log_Debug("Parts= {0}" , parts.Count.ToString());
             foreach (Part p in parts)
             {
                 List<IScienceDataContainer> containers = p.FindModulesImplementing<IScienceDataContainer>().ToList();
-                Utilities.Log_Debug("TSTSDD","Got containers: " + containers.Count.ToString());
+                Utilities.Log_Debug("Got containers: {0}" , containers.Count.ToString());
                 foreach (IScienceDataContainer container in containers)
                 {
-                    Utilities.Log_Debug("TSTSDD","Checking Data");
+                    Utilities.Log_Debug("Checking Data");
                     ScienceData[] data = container.GetData();
-                    Utilities.Log_Debug("TSTSDD","Got Data: " + data.Length.ToString());
+                    Utilities.Log_Debug("Got Data: {0}" , data.Length.ToString());
                     foreach (ScienceData d in data)
                     {
                         if (d != null)
                         {
-                            Utilities.Log_Debug("TSTSDD","Checking Space: " + d.dataAmount.ToString() + " " + _dataAmount.ToString() + " " + Capacity.ToString());
+                            Utilities.Log_Debug("Checking Space: {0} : {1} : {2}" , d.dataAmount.ToString() , _dataAmount.ToString() , Capacity.ToString());
                             if (d.dataAmount + _dataAmount <= Capacity)
                             {
                                 if (Utilities.GetAvailableResource(part, "ElectricCharge") >= d.dataAmount * powerUsage)
                                 {
-                                    Utilities.Log_Debug("TSTSDD","Removing Electric Charge");
+                                    Utilities.Log_Debug("Removing Electric Charge");
                                     part.RequestResource("ElectricCharge", d.dataAmount * powerUsage);
-                                    Utilities.Log_Debug("TSTSDD","Adding Data");
+                                    Utilities.Log_Debug("Adding Data");
                                     scienceData.Add(d);
                                     d.dataAmount *= (1 - corruption);
-                                    Utilities.Log_Debug("TSTSDD","Incrementing stored val");
+                                    Utilities.Log_Debug("Incrementing stored val");
                                     _DataAmount += d.dataAmount;
-                                    Utilities.Log_Debug("TSTSDD","Removing Data from source");
+                                    Utilities.Log_Debug("Removing Data from source");
                                     container.DumpData(d);
-                                    Utilities.Log_Debug("TSTSDD","Data Added");
+                                    Utilities.Log_Debug("Data Added");
                                 }
                                 else
                                 {
@@ -163,7 +165,7 @@ namespace TarsierSpaceTech
 
         public override string GetInfo()
         {
-            return "Capacity: " + Capacity.ToString() + "Mits\n";
+            return "Capacity: " + Capacity + "Mits\n";
         }
 
         // Results Dialog Page Callbacks
@@ -204,7 +206,7 @@ namespace TarsierSpaceTech
             {
                 if (scienceData.Count > 0)
                 {
-                    if (container.StoreData(new List<IScienceDataContainer>() { this },false))
+                    if (container.StoreData(new List<IScienceDataContainer> { this },false))
                         ScreenMessages.PostScreenMessage("Transferred Data to " + vessel.vesselName, 3f, ScreenMessageStyle.UPPER_CENTER);
                 }
             }
@@ -232,19 +234,20 @@ namespace TarsierSpaceTech
         {
             foreach (ScienceData data in scienceData)
             {
+                ScienceLabSearch labSearch = new ScienceLabSearch(FlightGlobals.ActiveVessel, data);
                 ExperimentResultDialogPage page = new ExperimentResultDialogPage(
                     part,
                     data,
                     data.transmitValue,
                     data.labBoost,
                     true,
-                    "If you transmit this data it will only be worth: " + Mathf.Round(data.transmitValue * 100).ToString() + "% of the full science value",
+                    "If you transmit this data it will only be worth: " + Mathf.Round(data.transmitValue * 100) + "% of the full science value",
                     true,
-                    false,
-                    new Callback<ScienceData>(_onPageDiscard),
-                    new Callback<ScienceData>(_onPageKeep),
-                    new Callback<ScienceData>(_onPageTransmit),
-                    new Callback<ScienceData>(_onPageSendToLab));
+                    labSearch,
+                    _onPageDiscard,
+                    _onPageKeep,
+                    _onPageTransmit,
+                    _onPageSendToLab);
                 ExperimentsResultDialog.DisplayResult(page);
             }
         }
@@ -265,19 +268,20 @@ namespace TarsierSpaceTech
 
         public void ReviewDataItem(ScienceData data)
         {
+            ScienceLabSearch labSearch = new ScienceLabSearch(FlightGlobals.ActiveVessel, data);
             ExperimentResultDialogPage page = new ExperimentResultDialogPage(
                     part,
                     data,
                     data.transmitValue,
                     data.labBoost,
                     true,
-                    "If you transmit this data it will only be worth: " + Mathf.Round(data.transmitValue * 100).ToString() + "% of the full science value",
+                    "If you transmit this data it will only be worth: " + Mathf.Round(data.transmitValue * 100) + "% of the full science value",
                     true,
-                    false,
-                    new Callback<ScienceData>(_onPageDiscard),
-                    new Callback<ScienceData>(_onPageKeep),
-                    new Callback<ScienceData>(_onPageTransmit),
-                    new Callback<ScienceData>(_onPageSendToLab));
+                    labSearch,
+                    _onPageDiscard,
+                    _onPageKeep,
+                    _onPageTransmit,
+                    _onPageSendToLab);
             ExperimentsResultDialog.DisplayResult(page);
         }
     }
