@@ -72,10 +72,10 @@ namespace TarsierSpaceTech
             Events["fillDrive"].unfocusedRange = EVARange;            
         }
 
-        [KSPEvent(name = "fillDrive", active = true, guiActive = true, externalToEVAOnly = false, guiName = "Fill Hard Drive")]
+        [KSPEvent(name = "fillDrive", active = true, guiActive = true, externalToEVAOnly = false, guiName = "Move All Science to Drive")]
         public void fillDrive()
         {
-            Utilities.Log_Debug("FILLING DRIVE");
+            Utilities.Log_Debug("Filling drive with all the juicy science");
 
             //List<Part> parts = vessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).ToList();
             List<Part> parts = FlightGlobals.ActiveVessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).ToList();
@@ -109,15 +109,16 @@ namespace TarsierSpaceTech
                                     Utilities.Log_Debug("Removing Data from source");
                                     container.DumpData(d);
                                     Utilities.Log_Debug("Data Added");
+                                    ScreenMessages.PostScreenMessage("Moved " + d.title + " to TST Drive", 10f, ScreenMessageStyle.UPPER_LEFT);
                                 }
                                 else
                                 {
-                                    ScreenMessages.PostScreenMessage("Required " + (d.dataAmount * powerUsage).ToString("00.00") + " ElectricCharge not available to store data" , 3f, ScreenMessageStyle.UPPER_CENTER);
+                                    ScreenMessages.PostScreenMessage("Required " + (d.dataAmount * powerUsage).ToString("00.00") + " ElectricCharge not available to store data" , 10f, ScreenMessageStyle.UPPER_CENTER);
                                 }
                             }
                             else
                             {
-                                ScreenMessages.PostScreenMessage("Not enough storage capacity to store data", 3f, ScreenMessageStyle.UPPER_CENTER);
+                                ScreenMessages.PostScreenMessage("Not enough storage capacity to store data", 10f, ScreenMessageStyle.UPPER_CENTER);
                             }
                         }
                     }
@@ -131,6 +132,70 @@ namespace TarsierSpaceTech
         {
             fillDrive();
         }
+
+        [KSPEvent(name = "expfillDrive", active = true, guiActive = true, externalToEVAOnly = false, guiName = "Move Experiments to Drive")]
+        public void expfillDrive()
+        {
+            Utilities.Log_Debug("Filling drive with non ScienceConverter and Command parts (where crewcapacity > 0) science only");
+
+            //List<Part> parts = vessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).ToList();
+            List<Part> parts = FlightGlobals.ActiveVessel.Parts.Where(p => p.FindModulesImplementing<IScienceDataContainer>().Count > 0).ToList();
+            parts.RemoveAll(p => p.FindModulesImplementing<TSTScienceHardDrive>().Count > 0);
+            parts.RemoveAll(p => p.FindModulesImplementing<ModuleScienceConverter>().Count > 0);
+            parts.RemoveAll(p => p.FindModulesImplementing<ModuleCommand>().Count > 0 && p.CrewCapacity > 0);
+            Utilities.Log_Debug("Parts= {0}", parts.Count.ToString());
+            foreach (Part p in parts)
+            {
+                List<IScienceDataContainer> containers = p.FindModulesImplementing<IScienceDataContainer>().ToList();
+                Utilities.Log_Debug("Got experiments: {0}", containers.Count.ToString());
+                foreach (IScienceDataContainer container in containers)
+                {
+                    Utilities.Log_Debug("Checking Data");
+                    ScienceData[] data = container.GetData();
+                    Utilities.Log_Debug("Got Data: {0}", data.Length.ToString());
+                    foreach (ScienceData d in data)
+                    {
+                        if (d != null)
+                        {
+                            Utilities.Log_Debug("Checking Space: {0} : {1} : {2}", d.dataAmount.ToString(), _dataAmount.ToString(), Capacity.ToString());
+                            if (d.dataAmount + _dataAmount <= Capacity)
+                            {
+                                if (Utilities.GetAvailableResource(part, "ElectricCharge") >= d.dataAmount * powerUsage)
+                                {
+                                    Utilities.Log_Debug("Removing Electric Charge");
+                                    part.RequestResource("ElectricCharge", d.dataAmount * powerUsage);
+                                    Utilities.Log_Debug("Adding Data");
+                                    scienceData.Add(d);
+                                    d.dataAmount *= (1 - corruption);
+                                    Utilities.Log_Debug("Incrementing stored val");
+                                    _DataAmount += d.dataAmount;
+                                    Utilities.Log_Debug("Removing Data from source");
+                                    container.DumpData(d);
+                                    Utilities.Log_Debug("Data Added");
+                                    ScreenMessages.PostScreenMessage("Moved " + d.title + " to TST Drive", 10f, ScreenMessageStyle.UPPER_LEFT);
+                                }
+                                else
+                                {
+                                    ScreenMessages.PostScreenMessage("Required " + (d.dataAmount * powerUsage).ToString("00.00") + " ElectricCharge not available to store data", 10f, ScreenMessageStyle.UPPER_CENTER);
+                                }
+                            }
+                            else
+                            {
+                                ScreenMessages.PostScreenMessage("Not enough storage capacity to store data", 10f, ScreenMessageStyle.UPPER_CENTER);
+                            }
+                        }
+                    }
+                }
+            }
+            Events["reviewScience"].guiActive = scienceData.Count > 0;
+        }
+
+        [KSPAction("expfillDrive")]
+        public void expfillActivateAction(KSPActionParam param)
+        {
+            expfillDrive();
+        }
+
 
         [KSPEvent(name = "reviewScience", active = true, guiActive = false, externalToEVAOnly = false, guiName = "Review Data")]
         public void reviewScience()
@@ -169,6 +234,7 @@ namespace TarsierSpaceTech
         }
 
         // Results Dialog Page Callbacks
+        
         private void _onPageDiscard(ScienceData data)
         {
             DumpData(data);
@@ -188,16 +254,29 @@ namespace TarsierSpaceTech
                 if (transmitter != null)
                 {
                     transmitter.TransmitData(new List<ScienceData> { data });
+                    _DataAmount -= data.dataAmount;
                     scienceData.Remove(data);
                 }
+            }
+            else
+            {
+                ScreenMessages.PostScreenMessage("No Comms Devices on this vessel. Cannot Transmit Data.", 3f, ScreenMessageStyle.UPPER_CENTER);
             }
         }
 
         private void _onPageSendToLab(ScienceData data)
         {
-
+            ScienceLabSearch scienceLabSearch = new ScienceLabSearch(base.vessel, data);
+            if (scienceLabSearch.NextLabForDataFound)
+            {
+                StartCoroutine(scienceLabSearch.NextLabForData.ProcessData(data, new Callback<ScienceData>(DumpData)));
+            }
+            else
+            {
+                scienceLabSearch.PostErrorToScreen();
+            }
         }
-
+        
         [KSPEvent(active = true, externalToEVAOnly = true, guiActiveUnfocused = true, guiName = "Collect Data", unfocusedRange = 2)]
         public void CollectScience()
         {
@@ -206,8 +285,19 @@ namespace TarsierSpaceTech
             {
                 if (scienceData.Count > 0)
                 {
-                    if (container.StoreData(new List<IScienceDataContainer> { this },false))
-                        ScreenMessages.PostScreenMessage("Transferred Data to " + vessel.vesselName, 3f, ScreenMessageStyle.UPPER_CENTER);
+                    if (container.StoreData(new List<IScienceDataContainer> {this}, false))
+                    {
+                        //ScreenMessages.PostScreenMessage("Transferred Data to " + vessel.vesselName, 3f, ScreenMessageStyle.UPPER_CENTER);
+                        ScreenMessages.PostScreenMessage("<color=#99ff00ff>[" + base.part.partInfo.title + "]: All Items Collected.</color>", 5f, ScreenMessageStyle.UPPER_LEFT);
+                    }
+                    else
+                    {
+                        ScreenMessages.PostScreenMessage("<color=orange>[" + base.part.partInfo.title + "]: Not all items could be Collected.</color>", 5f, ScreenMessageStyle.UPPER_LEFT);
+                    }
+                }
+                else
+                {
+                    ScreenMessages.PostScreenMessage("<color=#99ff00ff>[" + base.part.partInfo.title + "]: Nothing to Collect.</color>", 3f, ScreenMessageStyle.UPPER_CENTER);
                 }
             }
         }
@@ -215,6 +305,7 @@ namespace TarsierSpaceTech
         // IScienceDataContainer
         public void DumpData(ScienceData data)
         {
+            ScreenMessages.PostScreenMessage(string.Concat(new string[]{"<color=#ff9900ff>[",base.part.partInfo.title,"]: ",data.title," Removed.</color>"}), 5f, ScreenMessageStyle.UPPER_LEFT);
             _DataAmount -= data.dataAmount;
             scienceData.Remove(data);
             Events["reviewScience"].guiActive = scienceData.Count > 0;
@@ -251,20 +342,6 @@ namespace TarsierSpaceTech
                 ExperimentsResultDialog.DisplayResult(page);
             }
         }
-        
-        public void ReturnData(ScienceData data)
-        {
-            if (data == null)
-            {
-                return;
-            }
-            scienceData.Add(data);
-        }
-        
-        public bool IsRerunnable()
-        {
-            return false;
-        }
 
         public void ReviewDataItem(ScienceData data)
         {
@@ -283,6 +360,20 @@ namespace TarsierSpaceTech
                     _onPageTransmit,
                     _onPageSendToLab);
             ExperimentsResultDialog.DisplayResult(page);
+        }
+
+        public void ReturnData(ScienceData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+            scienceData.Add(data);
+        }
+        
+        public bool IsRerunnable()
+        {
+            return false;
         }
     }
 }

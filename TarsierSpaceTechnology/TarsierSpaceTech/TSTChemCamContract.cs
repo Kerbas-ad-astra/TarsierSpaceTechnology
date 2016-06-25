@@ -80,7 +80,11 @@ namespace TarsierSpaceTech
 
         protected override void OnCompleted()
         {
-            TSTProgressTracker.setChemCamContractComplete(target);
+            string targetname = target.name;
+            if (biome != "")
+                targetname += "," + biome;
+
+            TSTProgressTracker.setChemCamContractComplete(targetname);
         }
 
         private CelestialBody target;
@@ -99,18 +103,21 @@ namespace TarsierSpaceTech
             target = FlightGlobals.Bodies.Find(b => b.name == targetName);
             biome = node.GetValue("biome");
         }
-
+        private int offers = 0;
+        private int active = 0;
+        private TSTChemCamContract countActivecontracts;
+        
         protected override bool Generate()
         {
             TSTChemCamContract[] TSTChemCamContracts = ContractSystem.Instance.GetCurrentContracts<TSTChemCamContract>();
-            int offers = 0;
-            int active = 0;
+            offers = 0;
+            active = 0;
             for (int i = 0; i < TSTChemCamContracts.Length; i++)
             {
-                TSTChemCamContract m = TSTChemCamContracts[i];
-                if (m.ContractState == State.Offered)
+                countActivecontracts = TSTChemCamContracts[i];
+                if (countActivecontracts.ContractState == State.Offered)
                     offers++;
-                else if (m.ContractState == State.Active)
+                else if (countActivecontracts.ContractState == State.Active)
                     active++;
             }
             Utilities.Log_Debug("ChemCam Contracts check offers={0}, active={1}" , offers.ToString(), active.ToString());
@@ -118,13 +125,15 @@ namespace TarsierSpaceTech
                 return false;
             if (active >= TSTMstStgs.Instance.TSTsettings.maxChemCamContracts)
                 return false;
+
             Utilities.Log_Debug("Generating ChemCam Contract");
             agent = AgentList.Instance.GetAgent("Tarsier Space Technology");
             expiryType = DeadlineType.None;
             deadlineType = DeadlineType.None;
-            //IEnumerable<CelestialBody> availableBodies = FlightGlobals.Bodies.Where(b => b.name != "Sun" && b.name != "Jool");
             Random r = new Random(MissionSeed);
-            if (TSTMstStgs.Instance.TSTsettings.photoOnlyChemCamContracts)  //If we only want Bodies that have already been PhotoGraphed by a Telescope
+
+            //If we only want Bodies that have already been PhotoGraphed by a Telescope
+            if (TSTMstStgs.Instance.TSTsettings.photoOnlyChemCamContracts)  
             {
                 TSTTelescopeContract[] TSTTelescopeContractsCompleted = ContractSystem.Instance.GetCompletedContracts<TSTTelescopeContract>();
                 List<CelestialBody> availTelescopeBodies = new List<CelestialBody>();
@@ -136,7 +145,9 @@ namespace TarsierSpaceTech
                         availTelescopeBodies.Add(contractBody);
                     }
                 }
-                IEnumerable<CelestialBody> availableBodies = availTelescopeBodies.ToArray().Where(b => !TSTMstStgs.Instance.TSTgasplanets.TarsierPlanetOrder.Contains(b.name));  //Exclude the GasPlanets
+                IEnumerable<CelestialBody> availableBodies = availTelescopeBodies.ToArray()
+                    //.Where(b => !TSTMstStgs.Instance.TSTgasplanets.TarsierPlanetOrder.Contains(b.name) && b.Radius > 100 && b.pqsController != null);  //Exclude the GasPlanets
+                    .Where(b => b.Radius > 100 && b.pqsController != null);  //Exclude the GasPlanets & Sigma Binaries
                 if (!availableBodies.Any())
                 {
                     Utilities.Log_Debug("There are no Bodies that have been photographed, cannot generate ChemCam Contract at this time");
@@ -146,7 +157,9 @@ namespace TarsierSpaceTech
             }
             else  //We can use any Bodies
             {
-                IEnumerable<CelestialBody> availableBodies = FlightGlobals.Bodies.Where(b => !TSTMstStgs.Instance.TSTgasplanets.TarsierPlanetOrder.Contains(b.name)); //Exclude the GasPlanets
+                IEnumerable<CelestialBody> availableBodies = FlightGlobals.Bodies
+                    //.Where(b => !TSTMstStgs.Instance.TSTgasplanets.TarsierPlanetOrder.Contains(b.name) && b.Radius > 100 && b.pqsController != null); //Exclude the GasPlanets
+                    .Where(b => b.Radius > 100 && b.pqsController != null);  //Exclude the GasPlanets & Sigma Binaries
                 if (!availableBodies.Any())
                 {
                     Utilities.Log_Debug("There are no Bodies that have been photographed, cannot generate ChemCam Contract at this time");
@@ -154,6 +167,7 @@ namespace TarsierSpaceTech
                 }
                 target = availableBodies.ElementAt(r.Next(availableBodies.Count() - 1));
             }
+
             // if ResearchBodies is installed we need to check if the target body has been found. If it has not, then we set the target to default so a contract is not generated at this time.
             if (TSTMstStgs.Instance.isRBactive)
             {
@@ -190,19 +204,35 @@ namespace TarsierSpaceTech
             TSTScienceParam param2 = new TSTScienceParam();
             param2.matchFields.Add("TarsierSpaceTech.ChemCam");
             param2.matchFields.Add(target.name);
+            biome = "";
             List<string> biomes = ResearchAndDevelopment.GetBiomeTags(target);
             if (biomes.Count > 1)
             {
-                biome = biomes[r.Next(biomes.Count - 1)];
+                do
+                {
+                    biome = biomes[r.Next(biomes.Count - 1)];
+                } while (biome.Contains("Water"));
                 param2.matchFields.Add(biome);
             }
             AddParameter(param2);
             ContractPrestige p = TSTProgressTracker.getChemCamPrestige(target); //Get the target prestige level
             if (p != prestige)  //If the prestige is not the required level don't generate.
                 return false;
-            SetFunds(300, 400, target);
-            SetReputation(35, target);
-            SetScience(30, target);
+            string targetname = target.name;
+            if (biome != "")
+                    targetname += "," + biome;
+            if (TSTProgressTracker.HasChemCamCompleted(targetname))
+            {
+                SetFunds(TSTMstStgs.Instance.TSTsettings.fundsdiscoveredChem * 0.75f, TSTMstStgs.Instance.TSTsettings.fundsdiscoveredChem, target);
+                SetReputation(TSTMstStgs.Instance.TSTsettings.repDiscoveredChem, target);
+                SetScience(TSTMstStgs.Instance.TSTsettings.scienceDiscoveredChem, target);
+            }
+            else
+            {
+                SetFunds(TSTMstStgs.Instance.TSTsettings.fundsUndiscoveredChem * 0.75f, TSTMstStgs.Instance.TSTsettings.fundsUndiscoveredChem, target);
+                SetReputation(TSTMstStgs.Instance.TSTsettings.repUndiscoveredChem, target);
+                SetScience(TSTMstStgs.Instance.TSTsettings.scienceUndiscoveredChem, target);
+            }
             if (new Random(MissionSeed).Next(10) > 3)
             {
                 Utilities.Log_Debug("Random Seed False, not generating contract");

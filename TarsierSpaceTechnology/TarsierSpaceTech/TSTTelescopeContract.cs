@@ -92,8 +92,7 @@ namespace TarsierSpaceTech
         {
             TSTProgressTracker.setTelescopeContractComplete(target);
         }
-               
-        //The next two methods are courtesy of Xevilreeperx
+        
         protected override bool Generate()
         {
             TSTTelescopeContract[] TSTTelescopeContracts = ContractSystem.Instance.GetCurrentContracts<TSTTelescopeContract>();
@@ -151,54 +150,27 @@ namespace TarsierSpaceTech
             param2.matchFields.Add("LookingAt" + target.name);
             AddParameter(param2);
             Utilities.Log_Debug("Created Science Param");
-            prestige = TSTProgressTracker.getTelescopePrestige(target.name);
+            prestige = TSTProgressTracker.getTelescopePrestige(target);
             if (TSTProgressTracker.HasTelescopeCompleted(target))
             {
-                SetFunds(10, 15, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
-                SetReputation(5, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
-                SetReputation(5, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
+                SetScience(TSTMstStgs.Instance.TSTsettings.scienceDiscoveredScope, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
+                SetFunds(TSTMstStgs.Instance.TSTsettings.fundsdiscoveredScope * 0.75f, TSTMstStgs.Instance.TSTsettings.fundsdiscoveredScope, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
+                SetReputation(TSTMstStgs.Instance.TSTsettings.repDiscoveredScope, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
             }
             else
             {
-                SetScience(30, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
-                SetFunds(75, 150, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
-                SetReputation(20, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
+                SetScience(TSTMstStgs.Instance.TSTsettings.scienceUndiscoveredScope, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
+                SetFunds(TSTMstStgs.Instance.TSTsettings.fundsUndiscoveredScope * 0.75f, TSTMstStgs.Instance.TSTsettings.fundsUndiscoveredScope, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
+                SetReputation(TSTMstStgs.Instance.TSTsettings.repUndiscoveredScope, target.type == typeof(TSTGalaxy) ? null : (CelestialBody)target.BaseObject);
             }
             return true;
         }
 
-        private void FakeCallback(float f, ScienceSubject s, ProtoVessel p, bool b)
-        {
-            GameEvents.OnScienceRecieved.Remove(FakeCallback);
-        }
-
-        protected override void AwardCompletion()
-        {
-            base.AwardCompletion();
-
-            var bodyName = GetParameter<TSTTelescopeContractParam>().target.name;
-            var targetBody = FlightGlobals.Bodies.FirstOrDefault(cb => bodyName == cb.name);
-
-            if (targetBody == null)
-            {
-                Debug.LogWarning("Couldn't find CelestialBody with name " + bodyName + " that " + typeof(TSTTelescopeContractParam).Name + " specifies");
-                return;
-            }
-
-            var subtree = ProgressTracking.Instance.GetBodyTree(targetBody);
-
-            if (subtree.science.Subtree.Count > 0)
-            {
-                Debug.LogWarning("Multiple science subtree nodes for " + bodyName + " -- investigate");
-                return;
-            }
-
-            subtree.science.OnStow(); // removes it from onScienceReceived
-            GameEvents.OnScienceRecieved.Add(FakeCallback);
-            // we need a fake callback because the one that triggered this method call was removed by 
-            // TSTScienceParam.OnUnregister. GameEvent callbacks are stored in a list and called in reverse order
-            // so the subtree.science callback we're about to add would otherwise be the next called
-            subtree.science.OnDeploy(); // adds to end of onScienceReceived
-        }
+        //We would activate this if we only want to block the ProgressTracker for a Contract event only. See the TSTScienceProgressionblocker.cs file.
+        //protected override void AwardCompletion()
+        //{
+        //    TSTScienceProgressionBlocker.BlockSingleEvent();
+        //    base.AwardCompletion();
+        //}
     }
 }
